@@ -40,7 +40,7 @@ jobs:
   publish:
     name: Publish image to GHCR
     needs: test
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && vars.ENABLE_K8S_DEPLOY == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -73,3 +73,55 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    name: Deploy to Kubernetes
+    needs: publish
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure cluster access
+        env:
+          KUBE_CONFIG_B64: ${{ secrets.KUBE_CONFIG_B64 }}
+        run: |
+          test -n "$KUBE_CONFIG_B64" || { echo "KUBE_CONFIG_B64 is not configured"; exit 1; }
+          mkdir -p "$HOME/.kube"
+          echo "$KUBE_CONFIG_B64" | base64 --decode > "$HOME/.kube/config"
+
+      - name: Configure GHCR pull credentials
+        env:
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          test -n "$GHCR_USERNAME" || { echo "GHCR_USERNAME is not configured"; exit 1; }
+          test -n "$GHCR_TOKEN" || { echo "GHCR_TOKEN is not configured"; exit 1; }
+          kubectl create namespace ulpf --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n ulpf create secret docker-registry ghcr-pull \
+            --docker-server=ghcr.io \
+            --docker-username="$GHCR_USERNAME" \
+            --docker-password="$GHCR_TOKEN" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy application manifests
+        run: |
+          kubectl apply -f k8s/configmap.yaml
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/service.yaml
+          kubectl apply -f k8s/hpa.yaml
+          kubectl apply -f k8s/pdb.yaml
+          kubectl -n ulpf set image deployment/ulpf \
+            ulpf=ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
+          kubectl -n ulpf patch deployment ulpf --type merge \
+            -p '{"spec":{"template":{"spec":{"imagePullSecrets":[{"name":"ghcr-pull"}]}}}}'
+
+      - name: Wait for rollout
+        run: kubectl -n ulpf rollout status deployment/ulpf --timeout=180s

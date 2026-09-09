@@ -130,6 +130,12 @@ DEMO 3: End-to-End Workflow
 - Main-branch pushes publish versioned images to GHCR
 - Publishing uses the built-in GitHub Actions token
 
+### ✅ Automated Kubernetes Delivery (STEP 12)
+- Optional gated deployment job for main-branch pushes
+- Exact commit image selected after GHCR publication
+- Cluster access and registry credentials remain GitHub secrets
+- Rollout status is checked before the job succeeds
+
 ### ✅ Test Suite
 - 24 Registry tests (registration, lookup, discovery)
 - 24 Model tests (validation, serialization, losslessness)
@@ -222,7 +228,7 @@ json_str = event.model_dump_json()
 
 ---
 
-## Next Phase (STEP 12)
+## Next Phase (STEP 13)
 
-Ready to add automated deployment from GHCR to Kubernetes and multi-instance
-integration testing against the published image.
+Ready to add multi-instance integration testing against the published image
+and cluster-level smoke tests.

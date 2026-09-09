@@ -73,3 +73,18 @@ The publish job uses GitHub's built-in `GITHUB_TOKEN`; no registry password is
 stored in the repository. For Kubernetes, replace the local image in
 `k8s/deployment.yaml` with the published GHCR image and configure an image pull
 secret if the package is private.
+
+### Optional automated Kubernetes deployment
+
+The workflow includes a gated `deploy` job. It is disabled by default. To
+enable it, create the repository variable `ENABLE_K8S_DEPLOY=true` and these
+repository secrets:
+
+- `KUBE_CONFIG_B64`: base64-encoded kubeconfig for the target cluster
+- `GHCR_USERNAME`: GitHub username or machine user for image pulls
+- `GHCR_TOKEN`: read-only GHCR token
+- `ULPF_API_KEY`: application API key, if authentication is required
+
+The deploy job creates or updates the `ulpf` namespace, configures the GHCR
+pull secret, deploys the manifests, selects the exact image built for the
+commit, and waits for rollout completion.
