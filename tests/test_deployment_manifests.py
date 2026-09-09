@@ -25,3 +25,13 @@ def test_kubernetes_autoscaling_and_disruption_manifests_exist():
     assert "maxReplicas: 10" in hpa
     assert "kind: PodDisruptionBudget" in pdb
     assert "minAvailable: 1" in pdb
+
+
+def test_kubernetes_smoke_test_checks_canonical_output():
+    smoke_test = (ROOT / "k8s" / "smoke-test.ps1").read_text(encoding="utf-8")
+
+    assert "rollout status deployment/ulpf" in smoke_test
+    assert "/health" in smoke_test
+    assert "/parse" in smoke_test
+    assert "raw.message" in smoke_test
+    assert "provenance.parser" in smoke_test

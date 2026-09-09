@@ -7,7 +7,7 @@
 
 ## Test Results Summary
 
-### Automated Test Suite: **102/102 PASSED** ✅
+### Automated Test Suite: **103/103 PASSED** ✅
 
 ```
 tests/test_models.py                24 tests ✅
@@ -16,9 +16,9 @@ tests/test_detector.py              13 tests ✅
 tests/test_parsers.py               26 tests ✅
 tests/test_pipeline.py               4 tests ✅
 tests/test_api.py                    9 tests ✅
-tests/test_deployment_manifests.py   2 tests ✅
+tests/test_deployment_manifests.py   3 tests ✅
 ─────────────────────────────────────────────
-TOTAL                              102 tests ✅
+TOTAL                              103 tests ✅
 ```
 
 ### Demo Execution: **ALL DEMOS PASSED** ✅
@@ -136,6 +136,12 @@ DEMO 3: End-to-End Workflow
 - Cluster access and registry credentials remain GitHub secrets
 - Rollout status is checked before the job succeeds
 
+### ✅ Kubernetes Smoke Testing (STEP 13)
+- PowerShell smoke test checks rollout and replica readiness
+- Health and canonical parsing are tested through the Kubernetes Service
+- Raw data, parser provenance, and trace correlation are verified
+- CI deploy job is correctly gated by `ENABLE_K8S_DEPLOY`
+
 ### ✅ Test Suite
 - 24 Registry tests (registration, lookup, discovery)
 - 24 Model tests (validation, serialization, losslessness)
@@ -228,7 +234,7 @@ json_str = event.model_dump_json()
 
 ---
 
-## Next Phase (STEP 13)
+## Next Phase (STEP 14)
 
-Ready to add multi-instance integration testing against the published image
-and cluster-level smoke tests.
+Ready to add multi-instance load testing and Metrics Server configuration for
+working HPA CPU and memory measurements.

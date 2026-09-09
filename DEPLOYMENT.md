@@ -88,3 +88,10 @@ repository secrets:
 The deploy job creates or updates the `ulpf` namespace, configures the GHCR
 pull secret, deploys the manifests, selects the exact image built for the
 commit, and waits for rollout completion.
+
+For local verification, port-forward the Service and run the smoke test:
+
+```powershell
+kubectl -n ulpf port-forward service/ulpf 18000:8000
+.\k8s\smoke-test.ps1 -BaseUrl http://localhost:18000
+```
