@@ -1,0 +1,114 @@
+"""FastAPI entry point for the ULPF log processing service."""
+
+import logging
+import os
+
+from fastapi import FastAPI, Header, HTTPException, Request
+from pydantic import BaseModel, Field
+from starlette.responses import PlainTextResponse
+
+from backend.core.pipeline import LogProcessingPipeline, PipelineError, register_builtin_parsers
+from backend.models.event import EventResponse, ParseError
+from backend.api.security import (
+    RateLimitExceeded,
+    RateLimiter,
+    RequestMetrics,
+    configured_api_key,
+    configured_rate_limit,
+)
+from backend.api.observability import request_logging_middleware
+from backend.api.tracing import configure_tracing
+
+
+class LogRequest(BaseModel):
+    """Request body containing one raw log message."""
+
+    message: str = Field(..., min_length=1, description="Original log message")
+
+
+app = FastAPI(
+    title="ULPF - Universal Log Pre-processing Framework",
+    version="0.1.0",
+    description="Phase 1 canonical log normalization engine",
+)
+app.middleware("http")(request_logging_middleware)
+logging.basicConfig(
+    level=os.getenv("ULPF_LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+configure_tracing()
+
+register_builtin_parsers()
+pipeline = LogProcessingPipeline()
+_rate_limit, _rate_window = configured_rate_limit()
+rate_limiter = RateLimiter(_rate_limit, _rate_window)
+metrics = RequestMetrics()
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    """Return service readiness."""
+    return {"status": "ok"}
+
+
+@app.get("/metrics")
+def service_metrics() -> dict[str, int]:
+    """Return process-local request counters."""
+    return metrics.snapshot()
+
+
+@app.get("/metrics/prometheus", response_class=PlainTextResponse)
+def prometheus_metrics() -> str:
+    """Return counters in Prometheus text exposition format."""
+    snapshot = metrics.snapshot()
+    lines = [
+        "# HELP ulpf_requests_total Total HTTP requests received.",
+        "# TYPE ulpf_requests_total counter",
+        f"ulpf_requests_total {snapshot['total_requests']}",
+        "# HELP ulpf_parse_success_total Successfully parsed log requests.",
+        "# TYPE ulpf_parse_success_total counter",
+        f"ulpf_parse_success_total {snapshot['successful_parses']}",
+        "# HELP ulpf_parse_failure_total Log requests that could not be parsed.",
+        "# TYPE ulpf_parse_failure_total counter",
+        f"ulpf_parse_failure_total {snapshot['failed_parses']}",
+        "# HELP ulpf_rejected_requests_total Authentication or rate-limit rejections.",
+        "# TYPE ulpf_rejected_requests_total counter",
+        f"ulpf_rejected_requests_total {snapshot['rejected_requests']}",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+@app.post("/parse", response_model=EventResponse)
+def parse_log(
+    request: LogRequest,
+    http_request: Request,
+    x_api_key: str | None = Header(default=None),
+) -> EventResponse:
+    """Parse one raw log into a canonical event."""
+    metrics.record_request()
+    expected_key = configured_api_key()
+    if expected_key is not None and x_api_key != expected_key:
+        metrics.record_rejection()
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+    client_id = http_request.client.host if http_request.client else "unknown"
+    try:
+        rate_limiter.check(client_id)
+    except RateLimitExceeded:
+        metrics.record_rejection()
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+
+    try:
+        event = pipeline.process(request.message)
+        metrics.record_success()
+        return EventResponse(accepted=True, event=event)
+    except PipelineError as exc:
+        metrics.record_failure()
+        return EventResponse(
+            accepted=False,
+            error=ParseError(
+                status="parse_failure",
+                message=str(exc),
+                raw_message=request.message,
+            ),
+        )

@@ -1,0 +1,12 @@
+fastapi>=0.100
+uvicorn>=0.23
+pydantic>=2.0
+python-multipart
+httpx2
+pytest>=7.0
+pytest-cov
+opentelemetry-api>=1.27
+opentelemetry-sdk>=1.27
+opentelemetry-exporter-otlp-proto-http>=1.27
+# Optional production server configuration can use environment variables:
+# ULPF_API_KEY, ULPF_RATE_LIMIT, ULPF_RATE_WINDOW_SECONDS
