@@ -63,3 +63,15 @@ kubectl -n ulpf get hpa
 ```
 
 The HPA should show numeric CPU and memory targets instead of `<unknown>`.
+
+## Multi-instance load test
+
+With the Service port-forward running, send concurrent parse requests:
+
+```powershell
+python k8s/load_test.py --base-url http://localhost:18000 --requests 100 --workers 10
+```
+
+The JSON summary reports successful and failed requests, throughput, latency,
+and the number of unique trace IDs observed. The command exits with code 1 if
+any request fails.

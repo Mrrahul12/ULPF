@@ -95,3 +95,9 @@ For local verification, port-forward the Service and run the smoke test:
 kubectl -n ulpf port-forward service/ulpf 18000:8000
 .\k8s\smoke-test.ps1 -BaseUrl http://localhost:18000
 ```
+
+Run a concurrent multi-replica load test:
+
+```powershell
+python k8s/load_test.py --base-url http://localhost:18000 --requests 100 --workers 10
+```

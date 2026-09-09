@@ -7,7 +7,7 @@
 
 ## Test Results Summary
 
-### Automated Test Suite: **103/103 PASSED** ✅
+### Automated Test Suite: **104/104 PASSED** ✅
 
 ```
 tests/test_models.py                24 tests ✅
@@ -17,8 +17,9 @@ tests/test_parsers.py               26 tests ✅
 tests/test_pipeline.py               4 tests ✅
 tests/test_api.py                    9 tests ✅
 tests/test_deployment_manifests.py   3 tests ✅
+tests/test_load_test.py               1 test ✅
 ─────────────────────────────────────────────
-TOTAL                              103 tests ✅
+TOTAL                              104 tests ✅
 ```
 
 ### Demo Execution: **ALL DEMOS PASSED** ✅
@@ -147,6 +148,11 @@ DEMO 3: End-to-End Workflow
 - `kubectl top pods -n ulpf` returns CPU and memory values
 - HPA reports numeric targets and maintains the two-pod minimum
 
+### ✅ Multi-Instance Load Testing (STEP 15)
+- Concurrent load-test utility using Python standard library
+- Reports throughput, average/max latency, failures, and trace IDs
+- Fails automatically when any parse request fails
+
 ### ✅ Test Suite
 - 24 Registry tests (registration, lookup, discovery)
 - 24 Model tests (validation, serialization, losslessness)
@@ -239,6 +245,7 @@ json_str = event.model_dump_json()
 
 ---
 
-## Next Phase (STEP 15)
+## Next Phase (STEP 16)
 
-Ready to add multi-instance load testing and rolling-update resilience tests.
+Ready to add rolling-update resilience tests and automated load-test execution
+against the deployed Kubernetes Service.
