@@ -45,7 +45,7 @@ DEMO 3: End-to-End Workflow
 
 ---
 
-## What's Built (STEPS 2-10)
+## What's Built (STEPS 2-15)
 
 ### ✅ Core Models (`backend/models/event.py`)
 - `CanonicalEvent` - Main vendor-agnostic log schema
@@ -149,6 +149,12 @@ DEMO 3: End-to-End Workflow
 - HPA reports numeric targets and maintains the two-pod minimum
 
 ### ✅ Multi-Instance Load Testing (STEP 15)
+- `k8s/load_test.py` sends concurrent requests using the Python standard library
+- Reports throughput, average/max latency, failures, and unique trace IDs
+- Live result: 100/100 successful requests, 0 failures, 42.81 requests/second
+- Both Kubernetes replicas remained healthy during the test
+
+### ✅ Multi-Instance Load Testing (STEP 15)
 - Concurrent load-test utility using Python standard library
 - Reports throughput, average/max latency, failures, and trace IDs
 - Fails automatically when any parse request fails
@@ -175,6 +181,25 @@ DEMO 3: End-to-End Workflow
 | Plug-and-play parsers | ✅ | Registry + BaseParser |
 
 ---
+
+## Important Current Files
+
+```text
+backend/api/main.py                 FastAPI endpoints and API wiring
+backend/api/security.py             API key, rate limiting, counters
+backend/api/observability.py        Request IDs and structured request logs
+backend/api/tracing.py              Optional OpenTelemetry tracing
+backend/core/pipeline.py            Detection through canonical event creation
+backend/parsers/                    JSON, Cisco, Fortinet, Palo Alto, Syslog
+k8s/deployment.yaml                 Two-replica Kubernetes Deployment
+k8s/hpa.yaml                        CPU/memory autoscaler, 2-10 replicas
+k8s/smoke-test.ps1                  Kubernetes health and parse smoke test
+k8s/load_test.py                    Concurrent Kubernetes load test
+.github/workflows/ci-cd.yml         Test, build, GHCR publish, gated deploy
+docker-compose.yml                  Local ULPF plus Prometheus stack
+prometheus.yml                      Prometheus scrape configuration
+DEPLOYMENT.md                       Operator instructions
+```
 
 ## Directory Structure
 
@@ -245,7 +270,176 @@ json_str = event.model_dump_json()
 
 ---
 
-## Next Phase (STEP 16)
+## Remaining Roadmap
 
-Ready to add rolling-update resilience tests and automated load-test execution
-against the deployed Kubernetes Service.
+The following phases are intentionally recorded here so future AI sessions can
+resume without rediscovering the project plan.
+
+### STEP 16: Rolling-Update Resilience
+
+**Goal:** prove that the Service continues accepting requests while Kubernetes
+replaces application pods.
+
+**Build:**
+- Add a rolling-update test that sends requests continuously in one process.
+- Start a Deployment rollout while requests are active.
+- Record failed requests, latency spikes, and trace IDs.
+- Verify readiness probes prevent traffic from reaching unready pods.
+- Verify graceful termination and the `PodDisruptionBudget`.
+
+**Acceptance criteria:**
+- Rollout completes successfully.
+- No unexpected 5xx responses.
+- Both replicas become ready after the rollout.
+- The test produces a machine-readable summary.
+
+### STEP 17: HPA Stress Testing
+
+**Goal:** verify autoscaling behavior rather than only verifying that HPA has
+numeric metrics.
+
+**Build:**
+- Add a controlled CPU/load generator for the parse endpoint.
+- Capture HPA state before, during, and after load.
+- Wait for replicas to scale above the minimum when thresholds are exceeded.
+- Verify scale-down stabilization after load stops.
+- Record Prometheus counters and pod CPU/memory values.
+
+**Acceptance criteria:**
+- `kubectl top pods -n ulpf` returns values.
+- HPA reports numeric targets.
+- Scale-up and scale-down behavior is documented.
+- Tests do not depend on a fixed timing that is fragile across clusters.
+
+### STEP 18: Security Hardening
+
+**Goal:** make the service safer for a shared or public environment.
+
+**Build:**
+- Add request body size limits and stricter input validation.
+- Add API-key rotation guidance and secret replacement procedures.
+- Add Kubernetes NetworkPolicy where supported.
+- Add TLS/Ingress configuration for remote clusters.
+- Run dependency and container vulnerability scans in CI.
+- Review logging to ensure API keys and raw secrets are never logged.
+
+**Acceptance criteria:**
+- Oversized requests are rejected safely.
+- Invalid credentials return 401 without leaking details.
+- Secrets are sourced only from environment variables or Kubernetes Secrets.
+- CI reports security scan results.
+
+### STEP 19: Real Vendor Log Coverage
+
+**Goal:** improve parser accuracy using representative logs instead of only
+synthetic examples.
+
+**Build:**
+- Collect sanitized Cisco ASA, Fortinet, Palo Alto, Syslog, and JSON samples.
+- Add fixture files and expected canonical outputs.
+- Expand timestamp, severity, action, protocol, and category mappings.
+- Add malformed, partial, multiline, and unusual-field cases.
+- Track unmapped fields so no vendor data is silently discarded.
+
+**Acceptance criteria:**
+- Every supported parser has representative fixtures.
+- Every fixture preserves the exact raw message.
+- Unknown vendor fields remain in `unmapped`.
+- Parser regressions fail in CI.
+
+### STEP 20: Production Cloud Deployment
+
+**Goal:** deploy ULPF to a remotely accessible Kubernetes platform such as AKS.
+
+**Build:**
+- Push immutable images to GHCR or a cloud container registry.
+- Configure Ingress, DNS, TLS, and network access.
+- Configure external secrets and a remote OpenTelemetry collector.
+- Configure persistent Prometheus storage and alerting.
+- Document rollback and disaster-recovery procedures.
+
+**Acceptance criteria:**
+- Deployment is reachable through a secured URL.
+- Health, parse, metrics, and tracing work remotely.
+- Rollback to the previous image is documented and tested.
+- No local Docker Desktop assumptions remain in production manifests.
+
+### STEP 21: AI-Assisted Parser Generation
+
+**Goal:** support future plug-and-play parser generation while keeping human
+approval and lossless processing guarantees.
+
+**Build:**
+- Add an endpoint or offline tool for unsupported-log analysis.
+- Generate parser proposals from sanitized samples.
+- Generate detection, parsing, normalization, and tests together.
+- Run generated parsers in a restricted validation process.
+- Require approval before registering a generated parser.
+- Store parser version, mapping version, confidence, and source samples.
+
+**Acceptance criteria:**
+- Generated parsers cannot silently discard raw or unmapped data.
+- Generated code passes the BaseParser contract and test suite.
+- Low-confidence mappings are clearly marked.
+- Parser activation is auditable and reversible.
+
+### STEP 22: Polished Operations Dashboard
+
+**Goal:** provide a usable interface for operators, analysts, and developers.
+
+**Build:**
+- Create a React and TypeScript frontend after backend contracts stabilize.
+- Add dashboard endpoints:
+  - `GET /api/dashboard/summary`
+  - `GET /api/dashboard/events`
+  - `GET /api/dashboard/parsers`
+  - `GET /api/dashboard/health`
+  - `GET /api/dashboard/metrics`
+- Display parse volume, success/failure rates, parser distribution, latency,
+  pod health, HPA replicas, and recent canonical events.
+- Provide raw/unmapped field inspection and trace-ID lookup.
+- Add authentication, responsive layouts, loading states, empty states, and
+  error states.
+
+**Acceptance criteria:**
+- Operators can understand system health at a glance.
+- Analysts can inspect canonical, raw, and unmapped data together.
+- Developers can follow a request from trace ID to parser outcome.
+- Dashboard tests cover critical workflows and mobile/desktop layouts.
+
+## Recommended Build Order
+
+1. Step 16: rolling-update resilience
+2. Step 17: HPA stress testing
+3. Step 18: security hardening
+4. Step 19: real vendor fixtures
+5. Step 20: remote production deployment
+6. Step 21: AI-assisted parser generation
+7. Step 22: polished operations dashboard
+
+The dashboard may begin earlier as a prototype, but its production version
+should follow the backend, security, metrics, and tracing contracts.
+
+## AI Resume Instructions
+
+When continuing this project in a new session, read this file first and follow
+these rules:
+
+1. Preserve the core guarantee: **raw data must never be lost**.
+2. Preserve every unmapped vendor field in `CanonicalEvent.unmapped`.
+3. Do not put vendor-specific branching into the core pipeline.
+4. Use the existing parser registry and `BaseParser` contract.
+5. Run the full test suite before reporting completion.
+6. Check the current Git status and recent commit before editing.
+7. Do not enable GitHub Kubernetes deployment for the local Docker Desktop
+   cluster; it is unreachable from hosted GitHub Actions runners.
+8. Use the next incomplete phase above unless the user explicitly changes scope.
+9. Keep deployment secrets out of source control and never request secret values
+   in chat.
+
+## Current Handoff Point
+
+The next incomplete phase is **STEP 16: Rolling-Update Resilience**. The local
+Docker Desktop Kubernetes cluster is healthy, Metrics Server is installed, the
+HPA reports numeric CPU and memory targets, and the Service can be reached via
+port-forward. The latest published commit is `9808bb1`.
