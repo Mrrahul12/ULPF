@@ -44,9 +44,22 @@ For a remote registry, replace `ulpf:step9` with the fully qualified image
 name, for example `registry.example.com/ulpf:step10.1`, and set an appropriate
 `imagePullSecrets` entry if the registry is private.
 
-## Autoscaling note
+## Metrics Server and autoscaling
 
-The HPA requires the Kubernetes Metrics API (`metrics.k8s.io`). If
-`kubectl -n ulpf get hpa` shows `<unknown>` CPU or memory targets, install
-Metrics Server for the cluster before relying on autoscaling. The ULPF pods
-and Service can run normally without it.
+Docker Desktop Kubernetes requires Metrics Server for HPA CPU and memory
+measurements. Install it once per cluster:
+
+```powershell
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+kubectl -n kube-system patch deployment metrics-server --type=json -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"},{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-preferred-address-types=InternalIP,Hostname,ExternalIP"}]'
+kubectl -n kube-system rollout status deployment/metrics-server
+```
+
+Verify metrics and HPA values:
+
+```powershell
+kubectl top pods -n ulpf
+kubectl -n ulpf get hpa
+```
+
+The HPA should show numeric CPU and memory targets instead of `<unknown>`.

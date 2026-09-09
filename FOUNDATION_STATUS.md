@@ -142,6 +142,11 @@ DEMO 3: End-to-End Workflow
 - Raw data, parser provenance, and trace correlation are verified
 - CI deploy job is correctly gated by `ENABLE_K8S_DEPLOY`
 
+### ✅ Kubernetes Metrics and Autoscaling (STEP 14)
+- Metrics Server installed and registered as `metrics.k8s.io`
+- `kubectl top pods -n ulpf` returns CPU and memory values
+- HPA reports numeric targets and maintains the two-pod minimum
+
 ### ✅ Test Suite
 - 24 Registry tests (registration, lookup, discovery)
 - 24 Model tests (validation, serialization, losslessness)
@@ -234,7 +239,6 @@ json_str = event.model_dump_json()
 
 ---
 
-## Next Phase (STEP 14)
+## Next Phase (STEP 15)
 
-Ready to add multi-instance load testing and Metrics Server configuration for
-working HPA CPU and memory measurements.
+Ready to add multi-instance load testing and rolling-update resilience tests.
