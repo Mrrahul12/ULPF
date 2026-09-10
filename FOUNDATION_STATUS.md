@@ -154,10 +154,10 @@ DEMO 3: End-to-End Workflow
 - Live result: 100/100 successful requests, 0 failures, 42.81 requests/second
 - Both Kubernetes replicas remained healthy during the test
 
-### ✅ Multi-Instance Load Testing (STEP 15)
-- Concurrent load-test utility using Python standard library
-- Reports throughput, average/max latency, failures, and trace IDs
-- Fails automatically when any parse request fails
+### ✅ Rolling-Update Resilience Testing (STEP 16)
+- `k8s/rolling_update_test.py` triggers a Deployment restart during traffic
+- Checks rollout completion, failed requests, HTTP error statuses, latency, and trace IDs
+- Uses the existing readiness probes, rolling-update strategy, and disruption budget
 
 ### ✅ Test Suite
 - 24 Registry tests (registration, lookup, discovery)
@@ -195,6 +195,7 @@ k8s/deployment.yaml                 Two-replica Kubernetes Deployment
 k8s/hpa.yaml                        CPU/memory autoscaler, 2-10 replicas
 k8s/smoke-test.ps1                  Kubernetes health and parse smoke test
 k8s/load_test.py                    Concurrent Kubernetes load test
+k8s/rolling_update_test.py          Load test during a rolling restart
 .github/workflows/ci-cd.yml         Test, build, GHCR publish, gated deploy
 docker-compose.yml                  Local ULPF plus Prometheus stack
 prometheus.yml                      Prometheus scrape configuration
@@ -228,7 +229,7 @@ sihlogprocessing/
 ### Run Tests
 ```bash
 python -m pytest tests/ -v
-# Expected: 102 passed
+# Expected: 106 passed
 ```
 
 ### Run Demo
@@ -280,18 +281,11 @@ resume without rediscovering the project plan.
 **Goal:** prove that the Service continues accepting requests while Kubernetes
 replaces application pods.
 
-**Build:**
-- Add a rolling-update test that sends requests continuously in one process.
-- Start a Deployment rollout while requests are active.
-- Record failed requests, latency spikes, and trace IDs.
-- Verify readiness probes prevent traffic from reaching unready pods.
-- Verify graceful termination and the `PodDisruptionBudget`.
+**Status:** Complete. The `k8s/rolling_update_test.py` utility sends concurrent
+parse requests while triggering `kubectl rollout restart`, then waits for the
+rollout and reports machine-readable results.
 
-**Acceptance criteria:**
-- Rollout completes successfully.
-- No unexpected 5xx responses.
-- Both replicas become ready after the rollout.
-- The test produces a machine-readable summary.
+**Acceptance criteria:** Met by the rolling-update utility and live test.
 
 ### STEP 17: HPA Stress Testing
 

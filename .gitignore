@@ -46,3 +46,5 @@ Thumbs.db
 *.log
 *.tar
 docker-compose.override.yml
+
+k8s/step16-results/

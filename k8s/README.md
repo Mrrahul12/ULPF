@@ -75,3 +75,16 @@ python k8s/load_test.py --base-url http://localhost:18000 --requests 100 --worke
 The JSON summary reports successful and failed requests, throughput, latency,
 and the number of unique trace IDs observed. The command exits with code 1 if
 any request fails.
+
+## Rolling-update resilience test
+
+With the Service port-forward running, test availability during a Deployment
+rollout restart:
+
+```powershell
+python k8s/rolling_update_test.py --base-url http://localhost:18000 --requests 200 --workers 10
+```
+
+The test triggers `kubectl rollout restart`, sends requests concurrently,
+waits for rollout completion, and fails if any request fails or the rollout
+does not complete successfully. Use `--no-rollout` for a measurement-only run.

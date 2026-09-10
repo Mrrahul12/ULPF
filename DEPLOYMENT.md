@@ -101,3 +101,9 @@ Run a concurrent multi-replica load test:
 ```powershell
 python k8s/load_test.py --base-url http://localhost:18000 --requests 100 --workers 10
 ```
+
+Test request availability during a rolling update:
+
+```powershell
+python k8s/rolling_update_test.py --base-url http://localhost:18000 --requests 200 --workers 10
+```
