@@ -48,3 +48,5 @@ Thumbs.db
 docker-compose.override.yml
 
 k8s/step16-results/
+
+step16-results/
