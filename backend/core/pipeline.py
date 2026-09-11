@@ -1,7 +1,7 @@
 """Lossless log processing pipeline for ULPF Phase 1."""
 
 from typing import Any
-
+from backend.core.unknown_log_intelligence import analyze_unknown_log
 from backend.core.detector import SourceDetector
 from backend.core.normalizer import EventNormalizer
 from backend.core.provenance import (
@@ -68,6 +68,9 @@ class LogProcessingPipeline:
         except EventValidationError as exc:
             raise PipelineError(str(exc)) from exc
 
+    def analyze_unknown(self, raw_log: str):
+        """Analyze a log that is not recognized by any registered parser."""
+        return analyze_unknown_log(raw_log)
 
 def register_builtin_parsers() -> None:
     """Register all built-in parsers once in the global registry."""
@@ -78,5 +81,12 @@ def register_builtin_parsers() -> None:
     from backend.parsers.syslog import SyslogParser
 
     registry = get_registry()
-    for parser in (JSONParser(), CiscoASAParser(), FortinetParser(), PaloAltoParser(), SyslogParser()):
+
+    for parser in (
+        JSONParser(),
+        CiscoASAParser(),
+        FortinetParser(),
+        PaloAltoParser(),
+        SyslogParser(),
+    ):
         registry.update(parser)

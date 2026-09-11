@@ -6,7 +6,7 @@ import os
 from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 from starlette.responses import PlainTextResponse
-
+from backend.core.unknown_log_intelligence import analyze_unknown_log
 from backend.core.pipeline import LogProcessingPipeline, PipelineError, register_builtin_parsers
 from backend.models.event import EventResponse, ParseError, FieldExplanation
 from backend.core.explainability import explain_field
@@ -247,3 +247,16 @@ def explain_log_field(
             status_code=404,
             detail=str(exc),
         )
+
+@app.post("/api/unknown/analyze")
+def analyze_unknown_endpoint(payload: dict):
+    """Analyze an unrecognized log without invoking an AI service."""
+    raw_log = payload.get("raw_log")
+
+    if not isinstance(raw_log, str):
+        raise HTTPException(
+            status_code=400,
+            detail="raw_log must be a string",
+        )
+
+    return analyze_unknown_log(raw_log)
