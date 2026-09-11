@@ -4,7 +4,7 @@ import logging
 import os
 
 from fastapi import FastAPI, Header, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from starlette.responses import PlainTextResponse
 
 from backend.core.pipeline import LogProcessingPipeline, PipelineError, register_builtin_parsers
@@ -20,10 +20,26 @@ from backend.api.observability import request_logging_middleware
 from backend.api.tracing import configure_tracing
 
 
+MAX_LOG_MESSAGE_LENGTH = 64 * 1024
+
+
 class LogRequest(BaseModel):
     """Request body containing one raw log message."""
 
-    message: str = Field(..., min_length=1, description="Original log message")
+    message: str = Field(
+        ...,
+        min_length=1,
+        max_length=MAX_LOG_MESSAGE_LENGTH,
+        description="Original log message",
+    )
+
+    @field_validator("message")
+    @classmethod
+    def validate_message(cls, value: str) -> str:
+        """Reject messages that contain only whitespace."""
+        if not value.strip():
+            raise ValueError("message must contain non-whitespace characters")
+        return value
 
 
 app = FastAPI(
@@ -32,6 +48,31 @@ app = FastAPI(
     description="Phase 1 canonical log normalization engine",
 )
 app.middleware("http")(request_logging_middleware)
+MAX_REQUEST_BODY_BYTES = 70 * 1024
+
+
+@app.middleware("http")
+async def request_size_limit_middleware(request: Request, call_next):
+    """Reject HTTP requests whose declared body is too large."""
+    content_length = request.headers.get("content-length")
+
+    if content_length:
+        try:
+            body_size = int(content_length)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid Content-Length",
+            )
+
+        if body_size > MAX_REQUEST_BODY_BYTES:
+            return PlainTextResponse(
+                "Request body too large",
+                status_code=413,
+            )
+
+    return await call_next(request)
+
 logging.basicConfig(
     level=os.getenv("ULPF_LOG_LEVEL", "INFO").upper(),
     format="%(asctime)s %(levelname)s %(name)s %(message)s",

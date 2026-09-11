@@ -56,6 +56,38 @@ def test_parse_endpoint_rejects_missing_message():
 
     assert response.status_code == 422
 
+def test_parse_endpoint_rejects_empty_message():
+    response = client.post("/parse", json={"message": ""})
+
+    assert response.status_code == 422
+
+
+def test_parse_endpoint_rejects_whitespace_message():
+    response = client.post("/parse", json={"message": "   \n\t   "})
+
+    assert response.status_code == 422
+
+
+def test_parse_endpoint_rejects_oversized_message():
+    oversized = "A" * (main.MAX_LOG_MESSAGE_LENGTH + 1)
+
+    response = client.post(
+        "/parse",
+        json={"message": oversized},
+    )
+
+    assert response.status_code == 422
+
+
+def test_parse_endpoint_accepts_maximum_message_size():
+    message = "A" * main.MAX_LOG_MESSAGE_LENGTH
+
+    response = client.post(
+        "/parse",
+        json={"message": message},
+    )
+
+    assert response.status_code == 200
 
 def test_parse_endpoint_requires_configured_api_key(monkeypatch):
     monkeypatch.setenv("ULPF_API_KEY", "test-secret")
@@ -72,6 +104,32 @@ def test_parse_endpoint_requires_configured_api_key(monkeypatch):
     assert authorized.status_code == 200
     assert authorized.json()["accepted"] is True
 
+def test_parse_endpoint_rejects_wrong_api_key(monkeypatch):
+    monkeypatch.setenv("ULPF_API_KEY", "correct-secret")
+    raw = 'date=2026-09-09 devname="FW01" srcip=10.0.0.5'
+
+    response = client.post(
+        "/parse",
+        json={"message": raw},
+        headers={"X-API-Key": "wrong-secret"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid or missing API key"
+
+
+def test_parse_endpoint_does_not_leak_configured_api_key(monkeypatch):
+    secret = "super-secret-api-key"
+    monkeypatch.setenv("ULPF_API_KEY", secret)
+
+    response = client.post(
+        "/parse",
+        json={"message": "test"},
+        headers={"X-API-Key": "wrong-key"},
+    )
+
+    assert response.status_code == 401
+    assert secret not in response.text
 
 def test_parse_endpoint_enforces_rate_limit(monkeypatch):
     original_limiter = main.rate_limiter

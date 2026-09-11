@@ -1,0 +1,15 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ulpf-ingress
+  namespace: ulpf
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ulpf
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8000
