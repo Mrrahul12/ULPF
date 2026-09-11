@@ -325,22 +325,50 @@ numeric metrics.
 
 ### STEP 19: Real Vendor Log Coverage
 
-**Goal:** improve parser accuracy using representative logs instead of only
-synthetic examples.
+**Status:** COMPLETE
 
-**Build:**
-- Collect sanitized Cisco ASA, Fortinet, Palo Alto, Syslog, and JSON samples.
-- Add fixture files and expected canonical outputs.
-- Expand timestamp, severity, action, protocol, and category mappings.
-- Add malformed, partial, multiline, and unusual-field cases.
-- Track unmapped fields so no vendor data is silently discarded.
+**Goal:** improve parser accuracy using representative vendor log formats
+instead of relying only on synthetic examples.
 
-**Acceptance criteria:**
-- Every supported parser has representative fixtures.
-- Every fixture preserves the exact raw message.
-- Unknown vendor fields remain in `unmapped`.
-- Parser regressions fail in CI.
+**Implemented:**
+- Added realistic sanitized fixtures for all supported parsers:
+  - Cisco ASA
+  - Fortinet
+  - Palo Alto
+  - Syslog RFC3164
+  - Syslog RFC5424
+  - JSON
+- Added fixture-based regression tests covering the complete:
+  **Detect → Parse → Normalize** workflow.
+- Added malformed and edge-case fixtures for every parser.
+- Added empty-input coverage.
+- Verified malformed input does not crash the parser pipeline.
+- Verified malformed JSON is rejected safely.
+- Preserved the existing raw-message handling contract.
+- Added automated regression coverage through `tests/test_vendor_fixtures.py`.
 
+**Fixtures:**
+
+```text
+demo_data/
+├── cisco_asa/
+│   └── security.log
+├── fortinet/
+│   └── traffic.log
+├── json/
+│   └── events.json
+├── paloalto/
+│   └── traffic.log
+├── syslog/
+│   ├── rfc3164.log
+│   └── rfc5424.log
+└── edge_cases/
+    ├── cisco_malformed.log
+    ├── empty.log
+    ├── fortinet_incomplete.log
+    ├── json_malformed.log
+    ├── paloalto_malformed.log
+    └── syslog_malformed.log
 ### STEP 20: Production Cloud Deployment
 
 **Goal:** deploy ULPF to a remotely accessible Kubernetes platform such as AKS.

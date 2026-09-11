@@ -1,0 +1,26 @@
+[
+  {
+    "timestamp": "2026-09-09T20:31:22Z",
+    "src_ip": "10.0.0.5",
+    "src_port": 443,
+    "dst_ip": "192.168.1.20",
+    "dst_port": 8443,
+    "protocol": "TCP",
+    "action": "deny",
+    "severity": "high",
+    "hostname": "fw01",
+    "vendor": "Fortinet"
+  },
+  {
+    "timestamp": "2026-09-09T20:32:10Z",
+    "src_ip": "10.0.0.25",
+    "src_port": 5353,
+    "dst_ip": "8.8.8.8",
+    "dst_port": 53,
+    "protocol": "UDP",
+    "action": "allow",
+    "severity": "low",
+    "hostname": "fw01",
+    "vendor": "Fortinet"
+  }
+]
