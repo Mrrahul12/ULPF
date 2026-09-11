@@ -29,7 +29,7 @@ The registry also enables:
 - find_parser(log) → Try each parser's detect() to find a match
 - list_parsers() → List all registered parsers (for API)
 """
-
+from backend.models.parser_approval import ApprovalStatus, ParserApproval
 from typing import Dict, Optional, List
 from backend.parsers.base import BaseParser
 
@@ -73,6 +73,50 @@ class ParserRegistry:
             )
         
         self._parsers[parser.name] = parser
+
+    def register_approved(
+        self,
+        parser: BaseParser,
+        approval: ParserApproval,
+            ) -> None:
+        """
+        Register a dynamically generated parser only after human approval.
+
+        AI-generated parsers must have an explicit human approval decision
+        before they can enter the registry.
+
+        Raises:
+            TypeError: If parser or approval has an invalid type.
+            ValueError: If approval is not APPROVED or reviewer metadata
+                        is missing.
+        """
+        if not isinstance(parser, BaseParser):
+            raise TypeError(
+                f"Parser must inherit from BaseParser, got {type(parser).__name__}"
+            )
+
+        if not isinstance(approval, ParserApproval):
+            raise TypeError(
+                "approval must be a ParserApproval instance"
+            )
+
+        if approval.status != ApprovalStatus.APPROVED:
+            raise ValueError(
+                f"Parser '{parser.name}' cannot be registered without "
+                f"human approval. Current status: {approval.status.value}"
+            )
+
+        if not approval.reviewer or not approval.reviewer.strip():
+            raise ValueError(
+                "Approved parser must have a reviewer"
+            )
+
+        if approval.reviewed_at is None:
+            raise ValueError(
+                "Approved parser must have a reviewed_at timestamp"
+            )
+
+        self.register(parser)
     
     def update(self, parser: BaseParser) -> None:
         """

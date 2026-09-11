@@ -2,6 +2,10 @@
 
 import logging
 import os
+from fastapi import HTTPException
+from backend.core.approval_service import ApprovalService
+from backend.models.parser_approval import ParserApproval
+from backend.models.parser_approval_request import ParserApprovalRequest
 from backend.core.local_ai_mock import DeterministicLocalAI
 from backend.core.pipeline import LogProcessingPipeline
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -303,3 +307,51 @@ def validate_parser_definition(
         definition=request.definition,
         raw_log=request.raw_log,
     )
+
+@app.post("/api/parser-approval/approve")
+def approve_parser(request: ParserApprovalRequest):
+    """Approve a pending parser proposal through human review."""
+
+    approval = ParserApproval(
+        parser_name=request.parser_name,
+    )
+
+    service = ApprovalService()
+
+    try:
+        result = service.approve(
+            approval=approval,
+            reviewer=request.reviewer,
+            comment=request.comment,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    return result
+
+@app.post("/api/parser-approval/reject")
+def reject_parser(request: ParserApprovalRequest):
+    """Reject a pending parser proposal through human review."""
+
+    approval = ParserApproval(
+        parser_name=request.parser_name,
+    )
+
+    service = ApprovalService()
+
+    try:
+        result = service.reject(
+            approval=approval,
+            reviewer=request.reviewer,
+            comment=request.comment,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    return result
