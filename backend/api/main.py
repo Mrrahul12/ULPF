@@ -92,11 +92,15 @@ def parse_log(
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
     client_id = http_request.client.host if http_request.client else "unknown"
-    try:
-        rate_limiter.check(client_id)
-    except RateLimitExceeded:
-        metrics.record_rejection()
-        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+
+    hpa_test_mode = os.getenv("ULPF_HPA_TEST_MODE", "").strip().lower() == "true"
+
+    if not hpa_test_mode:
+        try:
+            rate_limiter.check(client_id)
+        except RateLimitExceeded:
+            metrics.record_rejection()
+            raise HTTPException(status_code=429, detail="Rate limit exceeded")
 
     try:
         event = pipeline.process(request.message)

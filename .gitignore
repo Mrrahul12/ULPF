@@ -50,3 +50,4 @@ docker-compose.override.yml
 k8s/step16-results/
 
 step16-results/
+k8s/step17-results/
