@@ -31,11 +31,25 @@ jobs:
       - name: Run tests
         run: python -m pytest tests/ -q
 
+      - name: Run Python dependency vulnerability scan
+        run: |
+          python -m pip install pip-audit
+          python -m pip_audit -r requirements.txt
+
       - name: Validate Docker Compose configuration
         run: docker compose config
 
       - name: Validate Docker image build
         run: docker build --tag ulpf:ci .
+
+      - name: Run container vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ulpf:ci
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
 
   publish:
     name: Publish image to GHCR
@@ -77,7 +91,7 @@ jobs:
   deploy:
     name: Deploy to Kubernetes
     needs: publish
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && vars.ENABLE_K8S_DEPLOY == 'true'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')&& vars.ENABLE_K8S_DEPLOY == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
