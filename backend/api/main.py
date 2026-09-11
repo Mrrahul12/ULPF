@@ -20,6 +20,10 @@ from backend.models.event import EventResponse, ParseError, FieldExplanation
 from backend.core.parser_validation_service import (
     ParserValidationService,
 )
+from backend.core.dynamic_registry import get_dynamic_registry
+from backend.models.dynamic_parser_request import (
+    DynamicParserRegistrationRequest,
+)
 from backend.models.parser_definition import ParserDefinition
 from backend.core.explainability import explain_field
 from backend.api.security import (
@@ -355,3 +359,67 @@ def reject_parser(request: ParserApprovalRequest):
         ) from exc
 
     return result
+
+@app.post("/api/dynamic-parsers/register")
+def register_dynamic_parser(
+    request: DynamicParserRegistrationRequest,
+):
+    service = get_dynamic_registry()
+
+    try:
+        return service.register(
+            definition=request.definition,
+            approval=request.approval,
+            vendor=request.vendor,
+            product=request.product,
+            confidence=request.confidence,
+            source=request.source,
+        )
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+
+@app.get("/api/dynamic-parsers")
+def list_dynamic_parsers():
+    service = get_dynamic_registry()
+
+    return {
+        "parsers": service.list_active(),
+        "total": len(service.list_active()),
+    }
+
+
+@app.get("/api/dynamic-parsers/{parser_name}")
+def get_dynamic_parser(parser_name: str):
+    service = get_dynamic_registry()
+
+    record = service.get(parser_name)
+
+    if record is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Dynamic parser not found: {parser_name}",
+        )
+
+    return record
+
+
+@app.delete("/api/dynamic-parsers/{parser_name}")
+def deactivate_dynamic_parser(parser_name: str):
+    service = get_dynamic_registry()
+
+    try:
+        return service.deactivate(parser_name)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
