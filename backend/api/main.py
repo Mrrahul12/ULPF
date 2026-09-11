@@ -7,9 +7,16 @@ from backend.core.pipeline import LogProcessingPipeline
 from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 from starlette.responses import PlainTextResponse
+from backend.models.parser_validation_request import (
+    ParserValidationRequest,
+)
 from backend.core.unknown_log_intelligence import analyze_unknown_log
 from backend.core.pipeline import LogProcessingPipeline, PipelineError, register_builtin_parsers
 from backend.models.event import EventResponse, ParseError, FieldExplanation
+from backend.core.parser_validation_service import (
+    ParserValidationService,
+)
+from backend.models.parser_definition import ParserDefinition
 from backend.core.explainability import explain_field
 from backend.api.security import (
     RateLimitExceeded,
@@ -283,3 +290,16 @@ def parser_factory_propose_endpoint(payload: dict):
     )
 
     return proposal
+
+@app.post("/api/parser-factory/validate")
+def validate_parser_definition(
+    request: ParserValidationRequest,
+):
+    """Generate and run automated tests for a parser definition."""
+
+    service = ParserValidationService()
+
+    return service.validate(
+        definition=request.definition,
+        raw_log=request.raw_log,
+    )
