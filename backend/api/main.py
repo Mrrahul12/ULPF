@@ -8,7 +8,8 @@ from pydantic import BaseModel, Field, field_validator
 from starlette.responses import PlainTextResponse
 
 from backend.core.pipeline import LogProcessingPipeline, PipelineError, register_builtin_parsers
-from backend.models.event import EventResponse, ParseError
+from backend.models.event import EventResponse, ParseError, FieldExplanation
+from backend.core.explainability import explain_field
 from backend.api.security import (
     RateLimitExceeded,
     RateLimiter,
@@ -40,6 +41,38 @@ class LogRequest(BaseModel):
         if not value.strip():
             raise ValueError("message must contain non-whitespace characters")
         return value
+
+class ExplainRequest(BaseModel):
+    """Request body for explaining one canonical field."""
+
+    message: str = Field(
+        ...,
+        min_length=1,
+        max_length=MAX_LOG_MESSAGE_LENGTH,
+        description="Original log message",
+    )
+
+    field: str = Field(
+        ...,
+        min_length=1,
+        description="Canonical field to explain",
+    )
+
+    @field_validator("message")
+    @classmethod
+    def validate_message(cls, value: str) -> str:
+        """Reject messages that contain only whitespace."""
+        if not value.strip():
+            raise ValueError("message must contain non-whitespace characters")
+        return value
+
+    @field_validator("field")
+    @classmethod
+    def validate_field(cls, value: str) -> str:
+        """Reject fields that contain only whitespace."""
+        if not value.strip():
+            raise ValueError("field must contain non-whitespace characters")
+        return value.strip()
 
 
 app = FastAPI(
@@ -156,4 +189,61 @@ def parse_log(
                 message=str(exc),
                 raw_message=request.message,
             ),
+        )
+
+
+@app.post("/explain", response_model=FieldExplanation)
+def explain_log_field(
+    request: ExplainRequest,
+    http_request: Request,
+    x_api_key: str | None = Header(default=None),
+) -> FieldExplanation:
+    """Process a log and explain how one canonical field was produced."""
+    metrics.record_request()
+
+    expected_key = configured_api_key()
+    if expected_key is not None and x_api_key != expected_key:
+        metrics.record_rejection()
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing API key",
+        )
+
+    client_id = http_request.client.host if http_request.client else "unknown"
+
+    hpa_test_mode = (
+        os.getenv("ULPF_HPA_TEST_MODE", "").strip().lower() == "true"
+    )
+
+    if not hpa_test_mode:
+        try:
+            rate_limiter.check(client_id)
+        except RateLimitExceeded:
+            metrics.record_rejection()
+            raise HTTPException(
+                status_code=429,
+                detail="Rate limit exceeded",
+            )
+
+    try:
+        event = pipeline.process(request.message)
+        explanation = explain_field(
+            event.provenance,
+            request.field,
+        )
+        metrics.record_success()
+        return explanation
+
+    except PipelineError as exc:
+        metrics.record_failure()
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+        )
+
+    except KeyError as exc:
+        metrics.record_failure()
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
         )

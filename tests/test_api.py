@@ -159,3 +159,63 @@ def test_prometheus_metrics_endpoint_returns_counters():
     assert response.status_code == 200
     assert "ulpf_requests_total" in response.text
     assert "# TYPE ulpf_parse_success_total counter" in response.text
+
+
+def test_explain_endpoint_returns_field_explanation():
+    raw = (
+        'date=2026-09-09 devname="FW01" '
+        'srcip=10.0.0.5 dstip=192.168.1.20 '
+        'action=deny'
+    )
+
+    response = client.post(
+        "/explain",
+        json={
+            "message": raw,
+            "field": "source.ip",
+        },
+    )
+
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["field"] == "source.ip"
+    assert body["value"] == "10.0.0.5"
+    assert body["source_field"] == "srcip"
+    assert body["parser"] == "fortinet"
+    assert body["parser_version"] == "1.0"
+    assert body["method"] == "deterministic"
+    assert body["confidence"] == 1.0
+    assert "deterministically" in body["explanation"]
+
+
+def test_explain_endpoint_returns_404_for_unknown_field():
+    raw = (
+        'date=2026-09-09 devname="FW01" '
+        'srcip=10.0.0.5 dstip=192.168.1.20 '
+        'action=deny'
+    )
+
+    response = client.post(
+        "/explain",
+        json={
+            "message": raw,
+            "field": "does.not.exist",
+        },
+    )
+
+    assert response.status_code == 404
+    assert "does.not.exist" in response.json()["detail"]
+
+
+def test_explain_endpoint_returns_422_for_unrecognized_log():
+    response = client.post(
+        "/explain",
+        json={
+            "message": "unrecognized text",
+            "field": "source.ip",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "No registered parser detected" in response.json()["detail"]

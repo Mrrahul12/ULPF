@@ -4,7 +4,10 @@ from typing import Any
 
 from backend.core.detector import SourceDetector
 from backend.core.normalizer import EventNormalizer
-from backend.core.provenance import build_provenance
+from backend.core.provenance import (
+    build_field_provenance,
+    build_provenance,
+)
 from backend.core.validator import EventValidationError, EventValidator
 from backend.models.event import CanonicalEvent
 from backend.parsers.registry import get_registry
@@ -41,10 +44,24 @@ class LogProcessingPipeline:
             raise PipelineError(error or f"Parser '{source}' failed")
 
         normalized_fields, unmapped = parser.normalize(dict(parsed))
-        event_data, unmapped = self.normalizer.normalize(normalized_fields, unmapped)
+
+        field_provenance = build_field_provenance(
+            dict(parsed),
+            normalized_fields,
+        )
+
+        event_data, unmapped = self.normalizer.normalize(
+            normalized_fields,
+            unmapped,
+        )
+
         event_data["raw"] = {"message": raw_log}
         event_data["unmapped"] = unmapped
-        event_data["provenance"] = build_provenance(parser.name, parser.version)
+        event_data["provenance"] = build_provenance(
+            parser.name,
+            parser.version,
+            field_provenance,
+        )
 
         try:
             return self.validator.validate(event_data)

@@ -11,8 +11,7 @@ Key principles:
 - Never lose unmapped fields
 - Full provenance tracking
 """
-
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Any, Dict
 from uuid import uuid4
 from pydantic import BaseModel, Field, ConfigDict
@@ -130,15 +129,82 @@ class RawData(BaseModel):
     )
 
 
+class FieldProvenance(BaseModel):
+    """
+    Provenance for one normalized canonical field.
+
+    Records where a canonical field came from and how it was produced.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    source_field: Optional[str] = Field(
+        default=None,
+        description="Original parser/vendor field that produced this canonical field"
+    )
+    value: Any = Field(
+        default=None,
+        description="Value assigned to the canonical field"
+    )
+    confidence: float = Field(
+        default=1.0,
+        description="Confidence of the mapping"
+    )
+    method: str = Field(
+        default="deterministic",
+        description="How the field was mapped: deterministic, inferred, or ai"
+    )
+
+class FieldExplanation(BaseModel):
+    """
+    Human-readable explanation for how a canonical field was produced.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    field: str = Field(
+        ...,
+        description="Canonical field being explained"
+    )
+    value: Any = Field(
+        default=None,
+        description="Normalized value of the field"
+    )
+    source_field: Optional[str] = Field(
+        default=None,
+        description="Original parser/vendor field"
+    )
+    parser: Optional[str] = Field(
+        default=None,
+        description="Parser that produced the field"
+    )
+    parser_version: Optional[str] = Field(
+        default=None,
+        description="Version of the parser"
+    )
+    method: str = Field(
+        default="inferred",
+        description="Mapping method: deterministic, inferred, or ai"
+    )
+    confidence: float = Field(
+        default=1.0,
+        description="Confidence of the field mapping"
+    )
+    explanation: str = Field(
+        default="",
+        description="Human-readable explanation"
+    )
+
+    
 class ProvenanceInfo(BaseModel):
     """
-    Metadata about how this event was processed.
-    
-    Enables traceability, debugging, and future AI confidence tracking.
-    Design allows extension without breaking existing data.
+    Metadata describing how an event was processed.
+
+    Includes both event-level and field-level provenance.
     """
-    model_config = ConfigDict(extra='allow')
-    
+
+    model_config = ConfigDict(extra="allow")
+
     parser: str = Field(
         ...,
         description="Name of the parser that processed this event"
@@ -153,11 +219,15 @@ class ProvenanceInfo(BaseModel):
     )
     confidence: float = Field(
         default=1.0,
-        description="Confidence score (1.0 = deterministic, <1.0 = AI-inferred)"
+        description="Overall event confidence"
     )
     processed_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(timezone.utc),
         description="Timestamp when the event was processed"
+    )
+    fields: Dict[str, FieldProvenance] = Field(
+        default_factory=dict,
+        description="Field-level provenance indexed by canonical field path"
     )
 
 
