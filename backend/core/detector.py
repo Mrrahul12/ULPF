@@ -81,7 +81,7 @@ class SourceDetector:
                 logger.warning(f"Error in {parser_name}.detect(): {e}")
                 continue
         
-        logger.warning(f"Could not detect source for log: {log[:100]}...")
+        logger.warning("Could not detect source for log input")
         return "unknown"
     
     def detect_with_confidence(self, log: str) -> tuple[str, float]:
