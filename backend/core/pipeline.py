@@ -1,5 +1,9 @@
 """Lossless log processing pipeline for ULPF Phase 1."""
-
+from backend.core.local_ai import LocalAIAdapter
+from backend.core.parser_factory import generate_parser_proposal
+from backend.core.parser_proposal_validator import (
+    validate_parser_proposal,
+)
 from typing import Any
 from backend.core.unknown_log_intelligence import analyze_unknown_log
 from backend.core.detector import SourceDetector
@@ -71,6 +75,20 @@ class LogProcessingPipeline:
     def analyze_unknown(self, raw_log: str):
         """Analyze a log that is not recognized by any registered parser."""
         return analyze_unknown_log(raw_log)
+
+    def generate_parser_proposal(
+        self,
+        raw_log: str,
+        adapter: LocalAIAdapter,
+    ):
+        """Generate and validate a parser proposal for an unknown log."""
+
+        proposal = generate_parser_proposal(
+            raw_log=raw_log,
+            adapter=adapter,
+        )
+
+        return validate_parser_proposal(proposal)
 
 def register_builtin_parsers() -> None:
     """Register all built-in parsers once in the global registry."""

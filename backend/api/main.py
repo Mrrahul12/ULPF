@@ -2,7 +2,8 @@
 
 import logging
 import os
-
+from backend.core.local_ai_mock import DeterministicLocalAI
+from backend.core.pipeline import LogProcessingPipeline
 from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 from starlette.responses import PlainTextResponse
@@ -260,3 +261,25 @@ def analyze_unknown_endpoint(payload: dict):
         )
 
     return analyze_unknown_log(raw_log)
+
+@app.post("/api/parser-factory/propose")
+def parser_factory_propose_endpoint(payload: dict):
+    """Generate a validated parser proposal for an unknown log."""
+
+    raw_log = payload.get("raw_log")
+
+    if not isinstance(raw_log, str) or not raw_log.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="raw_log must be a non-empty string",
+        )
+
+    pipeline = LogProcessingPipeline()
+    adapter = DeterministicLocalAI()
+
+    proposal = pipeline.generate_parser_proposal(
+        raw_log=raw_log,
+        adapter=adapter,
+    )
+
+    return proposal
