@@ -9,7 +9,16 @@ This script demonstrates the core components working together:
 
 Run with: python demo.py
 """
-
+from backend.core.approval_service import ApprovalService
+from backend.core.dynamic_registry import DynamicRegistryService
+from backend.core.local_ai_mock import DeterministicLocalAI
+from backend.core.parser_factory import generate_parser_proposal
+from backend.core.parser_sandbox import ParserSandbox
+from backend.core.parser_test_generator import ParserTestGenerator
+from backend.core.parser_test_runner import ParserTestRunner
+from backend.core.unknown_log_intelligence import analyze_unknown_log
+from backend.models.parser_approval import ParserApproval
+from backend.models.parser_definition import ParserDefinition
 from datetime import datetime
 from backend.models.event import (
     CanonicalEvent, SourceInfo, DestinationInfo, EventInfo,
@@ -261,6 +270,225 @@ def demo_parser_workflow(registry):
     print(f"   [+] Raw data preserved: {len(event.raw.message)} chars")
     print(f"   [+] Unmapped fields: {len(event.unmapped)}")
 
+def demo_unknown_vendor_hero():
+    """Demo 4: Unknown vendor automatic parser onboarding."""
+
+    print_section("DEMO 4: UNKNOWN VENDOR HERO DEMO")
+
+    unknown_log = (
+        'timestamp="2026-09-12T10:15:30Z" '
+        'src=192.168.10.20 '
+        'dst=10.0.0.15 '
+        'user=admin '
+        'result=blocked'
+    )
+
+    # ------------------------------------------------------------
+    # 1. UNKNOWN VENDOR LOG
+    # ------------------------------------------------------------
+    print("\n📥 UNKNOWN VENDOR LOG")
+    print(f"   {unknown_log}")
+
+    # ------------------------------------------------------------
+    # 2. UNKNOWN LOG INTELLIGENCE
+    # ------------------------------------------------------------
+    print("\n1️⃣  UNKNOWN LOG INTELLIGENCE")
+
+    analysis = analyze_unknown_log(unknown_log)
+
+    print(f"   Format: {analysis.format_type}")
+    print(f"   Timestamp detected: {analysis.timestamp_detected}")
+    print(f"   Fields: {analysis.key_value_fields}")
+    print(f"   Vendor hint: {analysis.vendor_hints}")
+    print(f"   Confidence: {analysis.confidence:.2f}")
+
+    # ------------------------------------------------------------
+    # 3. LOCAL AI
+    # ------------------------------------------------------------
+    print("\n2️⃣  LOCAL AI PARSER PROPOSAL")
+
+    local_ai = DeterministicLocalAI()
+
+    proposal = generate_parser_proposal(
+        raw_log=unknown_log,
+        adapter=local_ai,
+    )
+
+    print(f"   Parser: {proposal.parser_name}")
+    print(f"   Vendor: {proposal.vendor}")
+    print(f"   Format: {proposal.format_type}")
+    print(f"   Mappings: {proposal.mappings}")
+    print(f"   Source: {proposal.source}")
+    print(f"   Confidence: {proposal.confidence:.2f}")
+
+    # ------------------------------------------------------------
+    # 4. SAFE PARSER DEFINITION
+    # ------------------------------------------------------------
+    print("\n3️⃣  SAFE PARSER DEFINITION")
+
+    definition = ParserDefinition(
+        parser_name=proposal.parser_name,
+        format_type=proposal.format_type,
+        mappings=proposal.mappings,
+        timestamp_field=proposal.timestamp_field,
+    )
+
+    print(f"   Parser definition created: {definition.parser_name}")
+
+    # ------------------------------------------------------------
+    # 5. SANDBOX
+    # ------------------------------------------------------------
+    print("\n4️⃣  SANDBOX + SECURITY VALIDATION")
+
+    sandbox = ParserSandbox()
+
+    sandbox_result = sandbox.run(
+        definition=definition,
+        raw_log=unknown_log,
+    )
+
+    print(f"   Safe: {sandbox_result.safe}")
+    print(f"   Success: {sandbox_result.success}")
+    print(f"   Parsed fields: {sandbox_result.parsed_fields}")
+
+    if not sandbox_result.success or not sandbox_result.safe:
+        raise RuntimeError("Sandbox validation failed")
+
+    # ------------------------------------------------------------
+    # 6. AUTOMATED TESTS
+    # ------------------------------------------------------------
+    print("\n5️⃣  AUTOMATED PARSER TESTS")
+
+    generator = ParserTestGenerator()
+
+    test_cases = generator.generate(
+        definition=definition,
+        raw_log=unknown_log,
+    )
+
+    runner = ParserTestRunner()
+
+    test_results = runner.run(
+        definition=definition,
+        test_cases=test_cases,
+    )
+
+    for result in test_results:
+        status = "PASS" if result["passed"] else "FAIL"
+        print(f"   [{status}] {result['name']}")
+
+    if not test_results or not all(
+        result["passed"] for result in test_results
+    ):
+        raise RuntimeError("Automated parser tests failed")
+
+    # ------------------------------------------------------------
+    # 7. HUMAN APPROVAL
+    # ------------------------------------------------------------
+    print("\n6️⃣  HUMAN APPROVAL GATE")
+
+    approval = ParserApproval(
+        parser_name=definition.parser_name,
+    )
+
+    approval_service = ApprovalService()
+
+    approval = approval_service.approve(
+        approval=approval,
+        reviewer="sih_security_admin",
+        comment="Approved after sandbox and automated validation",
+    )
+
+    print(f"   Status: {approval.status.value}")
+    print(f"   Reviewer: {approval.reviewer}")
+
+    # ------------------------------------------------------------
+    # 8. DYNAMIC REGISTRATION
+    # ------------------------------------------------------------
+    print("\n7️⃣  DYNAMIC PARSER REGISTRATION")
+
+    registry = ParserRegistry()
+
+    dynamic_registry = DynamicRegistryService(
+        registry=registry,
+    )
+
+    record = dynamic_registry.register(
+        definition=definition,
+        approval=approval,
+        vendor=proposal.vendor,
+        product=proposal.product,
+        confidence=proposal.confidence,
+        source=proposal.source,
+    )
+
+    print(f"   Parser registered: {record.parser_name}")
+    print(f"   Version: {record.version}")
+    print(f"   Active: {record.active}")
+    print(f"   Approved by: {record.approved_by}")
+
+    # ------------------------------------------------------------
+    # 9. PARSE AGAIN
+    # ------------------------------------------------------------
+    print("\n8️⃣  PARSE WITH NEWLY REGISTERED PARSER")
+
+    parser = dynamic_registry.get_parser(
+        definition.parser_name,
+    )
+
+    if parser is None:
+        raise RuntimeError("Registered parser could not be retrieved")
+
+    success, parsed, error = parser.parse(unknown_log)
+
+    print(f"   Parse success: {success}")
+    print(f"   Parsed: {parsed}")
+
+    if not success:
+        raise RuntimeError(error)
+
+    # ------------------------------------------------------------
+    # 10. NORMALIZATION
+    # ------------------------------------------------------------
+    print("\n9️⃣  NORMALIZED EVENT")
+
+    normalized, unmapped = parser.normalize(parsed)
+
+    for field, value in normalized.items():
+        print(f"   {field:<20} = {value}")
+
+    if unmapped:
+        print("\n   Unmapped fields:")
+        for field, value in unmapped.items():
+            print(f"   {field:<20} = {value}")
+
+    # ------------------------------------------------------------
+    # FINAL RESULT
+    # ------------------------------------------------------------
+    print()
+    print("=" * 70)
+    print("  ✅ UNKNOWN VENDOR SUCCESSFULLY ONBOARDED")
+    print("=" * 70)
+
+    print("""
+    Unknown Vendor Log
+            ↓
+    Unknown Log Intelligence
+            ↓
+    Local AI Proposal
+            ↓
+    Security + Sandbox
+            ↓
+    Automated Tests
+            ↓
+    Human Approval
+            ↓
+    Dynamic Registry
+            ↓
+    Normalized Event
+    """)
+
+    print("🚀 ULPF UNKNOWN VENDOR HERO DEMO COMPLETE")
 
 def main():
     """Run all demos."""
@@ -278,6 +506,9 @@ def main():
         
         # Demo 3: Full workflow
         demo_parser_workflow(registry)
+
+        # Demo 4: Unknown Vendor Hero Demo
+        demo_unknown_vendor_hero()
         
         # Summary
         print_section("[+] DEMO COMPLETE - FOUNDATION IS WORKING!")
@@ -290,18 +521,17 @@ def main():
         print("   [+] Raw Data Preservation")
         print("   [+] Unmapped Fields Preservation")
         print("\n🚀 Next Steps:")
-        print("   → Implement core/detector.py")
-        print("   → Implement parser implementations (Cisco, Fortinet, Palo Alto, Syslog)")
-        print("   → Implement core/normalizer.py")
-        print("   → Implement core/validator.py")
-        print("   → Implement core/pipeline.py")
-        print("   → Implement FastAPI endpoints")
+        print("   →Step 30: Production Dashboard")
+        print("   → Step 31: SIEM / Data Lake Integration")
+        print("   → Step 32: Production / Remote Deployment")
+        print("   →  Final SIH Demo + Documentation")
         print("\n" + "="*70 + "\n")
         
     except Exception as e:
         print(f"\n[!] ERROR: {e}")
         import traceback
         traceback.print_exc()
+
 
 
 if __name__ == "__main__":
